@@ -3,7 +3,6 @@
 # Default values
 AFTER=""
 BEFORE=""
-FILTER=""
 COMMAND="list"
 USERNAME=""
 LOGS=""
@@ -11,10 +10,7 @@ CURRENCIES=()
 
 PROFIT=${XTF_PROFIT:-20}
 
-echo "PROFIT is set to a $PROFIT %"
-
 # Parse options
-echo "Initial FILTER: $FILTER"
 while [[ $# -gt 0 ]]; do
     case "$1" in
         -h | --help )
@@ -47,7 +43,6 @@ while [[ $# -gt 0 ]]; do
         ;;
     esac
 done
-FILTER="$AFTER $BEFORE"
 
 # Extracting the rest of the arguments
 if [ $# -ge 3 ]; then
@@ -66,53 +61,13 @@ else
     exit 1
 fi
 
-# Výpis informací
-echo "Filter: $FILTER"
-echo "Command: $COMMAND"
-echo "Username: $USERNAME"
-echo "Logs: $LOGS"
-echo "Currencies: ${CURRENCIES[@]}"
-
-# Ověření, zda je COMMAND platný
-case "$COMMAND" in
-    list | list-currency | status | profit)
-        echo "Command is valid: $COMMAND"
-    ;;
-    *)
-        echo "Error: Invalid command: $COMMAND" >&2
-        exit 1
-    ;;
-esac
 
 
-# Pokud je zadaný filtr -a, vypíše se získané datum a čas
-if [ -n "$AFTER" ]; then
-    echo "Filtr -a byl zadán s hodnotou: $AFTER"
-else
-    echo "Filtr -a nebyl zadán."
-fi
 
-
-# Pokud je zadaný filtr -b, vypíše se získané datum a čas
-if [ -n "$BEFORE" ]; then
-    echo "Filtr -b byl zadán s hodnotou: $BEFORE"
-else
-    echo "Filtr -b nebyl zadán."
-fi
-
-# Získání data a času ze zadaného filtru
-CURRENCY=$(echo "$FILTER" | grep -oP '\s-c\s\K[^\s]+')
-
-# Pokud je zadaný filtr -a, vypíše se získané datum a čas
-if [ -n "$CURRENCIES" ]; then
-    echo "Filtr -c byl zadán s hodnotou: ${CURRENCIES[@]}"
-else
-    echo "Filtr -c nebyl zadán."
-fi
 
 case "$COMMAND" in
     list | list-currency | status | profit)
-        awk -F';' -v bfr="$BEFORE" -v afr="$AFTER" -v curs="${CURRENCIES[*]}" -v com=$COMMAND -v user=$USERNAME \
+        awk -F';' -v bfr="$BEFORE" -v afr="$AFTER" -v curs="${CURRENCIES[*]}" -v com=$COMMAND -v user=$USERNAME -v prof=$PROFIT \
         'function convdate(date){
             if (date ~ /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/) {
                 gsub(/[-]/, "", date);
@@ -134,28 +89,22 @@ case "$COMMAND" in
                 print $3
                 } else if(com=="list") {
                     if($3 in cur || n==0) print
-                } else if(com=="status"){
-                    print "STATUS";
-                    if($3 in usr_cur && ($3 in cur || n==0)){
+                } else {
+                    if($3 in usr_cur){
                         usr_cur[$3] = usr_cur[$3]+$4;
-                    } else {
+                    } else if($3 in cur || n==0){
                         usr_cur[$3] = $4;
                     }
-                } else {
-
                 }
             }
         } END {
-            print "EPITAPH";
             for(key in usr_cur){
-                print key, " : ", usr_cur[key];
+                printf "%s : %.4f\n", key, usr_cur[key] * (1+((com=="profit" && usr_cur[key] > 0)? (prof/100.0):0));
             }
         }' log.txt | uniq
-
-        echo "Command is valid."
     ;;
     *)
-        echo "Error: Invalid command." >&2
+        echo "Error: Unknown command: $COMMAND" >&2
         exit 1
     ;;
 esac
