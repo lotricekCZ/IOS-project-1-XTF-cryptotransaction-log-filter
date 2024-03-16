@@ -102,7 +102,10 @@ case "$COMMAND" in
     list | list-currency | status | profit)
         case "$COMMAND" in
             list | list-currency)
-                awk -F';' -v com=$COMMAND -v user=$USERNAME '{if(com=="list" && user==$1)print $user has $3}' log.txt | uniq
+                awk -F';' -v cur=$CURRENCY -v com=$COMMAND -v user=$USERNAME \
+                '{if(user==$1)
+                    if(com=="list-currency") print $3 
+                    else if(cur==$3 || !cur) print}' log.txt | uniq
             ;;
             *)
             ;;
