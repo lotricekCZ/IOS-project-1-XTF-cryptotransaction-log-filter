@@ -9,6 +9,10 @@ USERNAME=""
 LOGS=""
 CURRENCIES=()
 
+PROFIT=${XTF_PROFIT:-20}
+
+echo "PROFIT is set to a $PROFIT %"
+
 # Parse options
 echo "Initial FILTER: $FILTER"
 while [[ $# -gt 0 ]]; do
@@ -108,38 +112,46 @@ fi
 
 case "$COMMAND" in
     list | list-currency | status | profit)
-        case "$COMMAND" in
-            list | list-currency)
-                awk -F';' -v bfr="$BEFORE" -v afr="$AFTER" -v curs="${CURRENCIES[*]}" -v com=$COMMAND -v user=$USERNAME \
-                'function convdate(date){
-                    if (date ~ /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/) {
-                        gsub(/[-]/, "", date);
-                        date = date "000000";  # Přidej výchozí čas (půlnoc)
+        awk -F';' -v bfr="$BEFORE" -v afr="$AFTER" -v curs="${CURRENCIES[*]}" -v com=$COMMAND -v user=$USERNAME \
+        'function convdate(date){
+            if (date ~ /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/) {
+                gsub(/[-]/, "", date);
+                date = date "000000";  # Přidej výchozí čas (půlnoc)
+            }
+            # Pokud je formát YYYY-MM-DD HH:MM::SS
+            else if (date ~ /^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}$/) {
+                gsub(/[-: ]/, "", date);
+            }
+            return date;
+        }
+        {
+        n = split(curs, arr, " ");
+        for (i = 1; i <= n; i++) {
+            cur[arr[i]] = 1
+            }
+        if(user==$1 && (!bfr || convdate(bfr) > convdate($2)) && (!afr || convdate(afr) < convdate($2)) && length($3) == 3){
+            if(com=="list-currency") {
+                print $3
+                } else if(com=="list") {
+                    if($3 in cur || n==0) print
+                } else if(com=="status"){
+                    print "STATUS";
+                    if($3 in usr_cur && ($3 in cur || n==0)){
+                        usr_cur[$3] = usr_cur[$3]+$4;
+                    } else {
+                        usr_cur[$3] = $4;
                     }
-                    # Pokud je formát YYYY-MM-DD HH:MM::SS
-                    else if (date ~ /^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}$/) {
-                        gsub(/[-: ]/, "", date);
-                    }
-                    return date;
-                }
-                {
-                n = split(curs, arr, " ");
-                for (i = 1; i <= n; i++) {
-                   cur[arr[i]] = 1
-                   }
-                if(user==$1 && (!bfr || convdate(bfr) > convdate($2)) && (!afr || convdate(afr) < convdate($2))){
-                    if(com=="list-currency") {
-                        print $3
-                        } else {
-                            if(($3 in cur || n==0) && length($3) == 3) print
-                            }
-                    }
-                }' log.txt | uniq
+                } else {
 
-            ;;
-            *)
-            ;;
-        esac
+                }
+            }
+        } END {
+            print "EPITAPH";
+            for(key in usr_cur){
+                print key, " : ", usr_cur[key];
+            }
+        }' log.txt | uniq
+
         echo "Command is valid."
     ;;
     *)
@@ -147,6 +159,3 @@ case "$COMMAND" in
         exit 1
     ;;
 esac
-
-
-# awk -F';' '{print $1}' log.txt
