@@ -1,0 +1,119 @@
+#!/bin/bash
+
+# Default values
+FILTER=""
+COMMAND="list"
+USERNAME=""
+LOGS=""
+
+# Parse options
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -h | --help )
+            echo "Usage: xtf [-h|--help] [FILTR] [PŘÍKAZ] UŽIVATEL LOG [LOG2 [...]]"
+            echo "Options:"
+            echo "  -h, --help          Display this help message"
+            echo "  -a, --after DATETIME         Filter records after DATETIME"
+            echo "  -b, --before DATETIME         Filter records before DATETIME"
+            echo "  -c, --currency CURRENCY         Filter records by currency"
+            exit 0
+        ;;
+        -a | --after )
+            FILTER+=" -a $2"
+            shift 2
+        ;;
+        -b | --before )
+            FILTER+=" -b $2"
+            shift 2
+        ;;
+        -c | --currency )
+            FILTER+=" -c $2"
+            shift 2
+        ;;
+        -*)
+            echo "Error: Unknown option: $1" >&2
+            exit 1
+        ;;
+        *)
+            break
+        ;;
+    esac
+done
+
+# Extracting the rest of the arguments
+if [ $# -ge 3 ]; then
+    COMMAND=$1
+    USERNAME=$2
+    shift 2
+    LOGS="$@"
+    elif [ $# -eq 2 ]; then
+    USERNAME=$1
+    shift
+    LOGS="$1"
+    elif [ $# -eq 1 ]; then
+    USERNAME=$1
+else
+    echo "Error: Insufficient arguments." >&2
+    exit 1
+fi
+
+echo "Filter: $FILTER"
+echo "Command: $COMMAND"
+echo "Username: $USERNAME"
+echo "Logs: $LOGS"
+
+# Získání data a času ze zadaného filtru
+AFTER_DATETIME=$(echo "$FILTER" | grep -oP '\s-a\s\K[^\s]+')
+
+# Pokud je zadaný filtr -a, vypíše se získané datum a čas
+if [ -n "$AFTER_DATETIME" ]; then
+    echo "Filtr -a byl zadán s hodnotou: $AFTER_DATETIME"
+else
+    echo "Filtr -a nebyl zadán."
+fi
+
+# Získání data a času ze zadaného filtru
+BEFORE_DATETIME=$(echo "$FILTER" | grep -oP '\s-b\s\K[^\s]+')
+
+# Pokud je zadaný filtr -b, vypíše se získané datum a čas
+if [ -n "$BEFORE_DATETIME" ]; then
+    echo "Filtr -b byl zadán s hodnotou: $BEFORE_DATETIME"
+else
+    echo "Filtr -b nebyl zadán."
+fi
+
+# Získání data a času ze zadaného filtru
+CURRENCY=$(echo "$FILTER" | grep -oP '\s-c\s\K[^\s]+')
+
+# Pokud je zadaný filtr -a, vypíše se získané datum a čas
+if [ -n "$CURRENCY" ]; then
+    echo "Filtr -c byl zadán s hodnotou: $CURRENCY"
+else
+    echo "Filtr -c nebyl zadán."
+fi
+
+if [ -n "$CURRENCY" ]; then
+    echo "Filtr -c byl zadán s hodnotou: $CURRENCY"
+else
+    echo "Filtr -c nebyl zadán."
+fi
+
+case "$COMMAND" in
+    list | list-currency | status | profit)
+        case "$COMMAND" in
+            list | list-currency)
+                awk -F';' -v com=$COMMAND -v user=$USERNAME '{if(com=="list" && user==$1)print $user has $3}' log.txt | uniq
+            ;;
+            *)
+            ;;
+        esac
+        echo "Command is valid."
+    ;;
+    *)
+        echo "Error: Invalid command." >&2
+        exit 1
+    ;;
+esac
+
+
+# awk -F';' '{print $1}' log.txt
