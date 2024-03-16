@@ -1,6 +1,8 @@
 #!/bin/bash
 
 # Default values
+AFTER=""
+BEFORE=""
 FILTER=""
 COMMAND="list"
 USERNAME=""
@@ -8,6 +10,7 @@ LOGS=""
 CURRENCIES=()
 
 # Parse options
+echo "Initial FILTER: $FILTER"
 while [[ $# -gt 0 ]]; do
     case "$1" in
         -h | --help )
@@ -20,11 +23,11 @@ while [[ $# -gt 0 ]]; do
             exit 0
         ;;
         -a | --after )
-            FILTER+=" -a $2"
+            AFTER+="$2"
             shift 2
         ;;
         -b | --before )
-            FILTER+=" -b $2"
+            BEFORE+="$2"
             shift 2
         ;;
         -c | --currency )
@@ -40,6 +43,7 @@ while [[ $# -gt 0 ]]; do
         ;;
     esac
 done
+FILTER="$AFTER $BEFORE"
 
 # Extracting the rest of the arguments
 if [ $# -ge 3 ]; then
@@ -77,9 +81,6 @@ case "$COMMAND" in
 esac
 
 
-# Získání data a času ze zadaného filtru
-AFTER=$(echo "$FILTER" | grep -oP '\s-a\s\K[^\s]+')
-
 # Pokud je zadaný filtr -a, vypíše se získané datum a čas
 if [ -n "$AFTER" ]; then
     echo "Filtr -a byl zadán s hodnotou: $AFTER"
@@ -87,8 +88,6 @@ else
     echo "Filtr -a nebyl zadán."
 fi
 
-# Získání data a času ze zadaného filtru
-BEFORE=$(echo "$FILTER" | grep -oP '\s-b\s\K[^\s]+')
 
 # Pokud je zadaný filtr -b, vypíše se získané datum a čas
 if [ -n "$BEFORE" ]; then
@@ -102,7 +101,7 @@ CURRENCY=$(echo "$FILTER" | grep -oP '\s-c\s\K[^\s]+')
 
 # Pokud je zadaný filtr -a, vypíše se získané datum a čas
 if [ -n "$CURRENCIES" ]; then
-    echo "Filtr -c byl zadán s hodnotou: $CURRENCIES"
+    echo "Filtr -c byl zadán s hodnotou: ${CURRENCIES[@]}"
 else
     echo "Filtr -c nebyl zadán."
 fi
@@ -111,10 +110,21 @@ case "$COMMAND" in
     list | list-currency | status | profit)
         case "$COMMAND" in
             list | list-currency)
-                awk -F';' -v bfr=$BEFORE -v afr=$AFTER -v cur=$CURRENCY -v com=$COMMAND -v user=$USERNAME \
-                '{if(user==$1 && (!bfr || bfr < $2) && (!afr || afr > $2))
-                    if(com=="list-currency") print $3
-                    else if(cur==$3 || !cur) print}' log.txt | uniq
+                awk -F';' -v bfr="$BEFORE" -v afr="$AFTER" -v cur=$CURRENCY -v com=$COMMAND -v user=$USERNAME \
+                'function convdate(date){
+                    if (date ~ /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/) {
+                        gsub(/[-]/, "", date);
+                        date = date "000000";  # Přidej výchozí čas (půlnoc)
+                    }
+                    # Pokud je formát YYYY-MM-DD HH:MM::SS
+                    else if (date ~ /^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}$/) {
+                        gsub(/[-: ]/, "", date);
+                    }
+                    return date;
+                }
+                {if(user==$1 && (!bfr || convdate(bfr) < convdate($2)) && (!afr || convdate(afr) > convdate($2)))
+                        if(com=="list-currency") print $3
+                       else if(cur==$3 || !cur) print}' log.txt | uniq
             ;;
             *)
             ;;
